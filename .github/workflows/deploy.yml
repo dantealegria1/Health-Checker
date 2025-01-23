@@ -1,0 +1,44 @@
+name: Build and Deploy Go App
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Obtener el código del repositorio
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Instalar Go
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.23.5'  # Cambia esto por la versión de Go que necesitas
+
+      # Instalar dependencias (si las tienes)
+      - name: Install dependencies
+        run: |
+          go mod tidy
+
+      # Compilar el proyecto Go
+      - name: Build Go App
+        run: |
+          go build -o app
+
+      # Subir el archivo binario a un servidor o hacer el despliegue
+      - name: Deploy to GitHub Pages or Server
+        run: |
+          # Aquí puedes ejecutar comandos para copiar el binario a un servidor o GitHub Pages
+          # Si lo subes a GitHub Pages:
+          cp -r public/* ./docs/
+          git add .
+          git commit -m "Deploy"
+          git push origin main
