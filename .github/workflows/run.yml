@@ -21,11 +21,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.20 # Adjust to your required Go version
+          go-version: 1.20 # Ensure this is a version supporting 'go mod'
 
       # Step 3: Install dependencies
       - name: Install dependencies
         run: go mod tidy
+        env:
+          GO111MODULE: on
 
       # Step 4: Run tests (if applicable)
       - name: Run tests
@@ -33,11 +35,12 @@ jobs:
 
       # Step 5: Build the application
       - name: Build
-        run: go build -o main .
+        run: go build -o service-monitor .
 
       # Step 6: Run the application
       - name: Run application
         env:
           CONFIG_FILE: config.json
         run: |
-          nohup ./main &
+          nohup ./service-monitor &
+
