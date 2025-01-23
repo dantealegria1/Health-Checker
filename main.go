@@ -1,12 +1,17 @@
+// main.go
 package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"gopkg.in/gomail.v2"
 )
 
 // Service represents a web service to monitor
@@ -19,6 +24,17 @@ type Service struct {
 // Config holds the application configuration
 type Config struct {
     Services []Service `json:"services"`
+    Email    EmailConfig `json:"email"`
+}
+
+// EmailConfig holds email notification settings
+type EmailConfig struct {
+    SMTPHost     string `json:"smtp_host"`
+    SMTPPort     int    `json:"smtp_port"`
+    SMTPUser     string `json:"smtp_user"`
+    SMTPPassword string `json:"smtp_password"`
+    FromEmail    string `json:"from_email"`
+    ToEmail      string `json:"to_email"`
 }
 
 // ServiceStatus represents the current status of a service
@@ -171,6 +187,50 @@ func monitorService(service Service, statusChan chan<- ServiceStatus) {
     }
 }
 
+// sendEmailNotification sends an email alert
+func sendEmailNotification(config EmailConfig, status ServiceStatus) error {
+    m := gomail.NewMessage()
+    m.SetHeader("From", config.FromEmail)
+    m.SetHeader("To", config.ToEmail)
+    m.SetHeader("Subject", fmt.Sprintf("Service Alert: %s is DOWN", status.Name))
+
+    body := fmt.Sprintf(
+        "Service %s is experiencing issues:\n\nStatus Code: %d\nError: %s\nLast Checked: %s\nResponse Time: %s",
+        status.Name,
+        status.StatusCode,
+        status.Error,
+        status.LastChecked.Format(time.RFC1123),
+        status.ResponseTime,
+    )
+    m.SetBody("text/plain", body)
+
+    d := gomail.NewDialer(config.SMTPHost, config.SMTPPort, config.SMTPUser, config.SMTPPassword)
+    return d.DialAndSend(m)
+}
+
+// setupDashboard sets up the web dashboard
+func setupDashboard(statusManager *StatusManager) {
+    tmpl := template.Must(template.ParseFiles("dashboard.html"))
+
+    http.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+        statuses := statusManager.GetAllStatuses()
+        data := struct {
+            Statuses []ServiceStatus
+            Time     time.Time
+        }{
+            Statuses: statuses,
+            Time:     time.Now(),
+        }
+        tmpl.Execute(w, data)
+    })
+
+    // Serve JSON API endpoint
+    http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(statusManager.GetAllStatuses())
+    })
+}
+
 func main() {
     config, err := loadConfig()
     if err != nil {
@@ -185,10 +245,26 @@ func main() {
         go monitorService(service, statusChan)
     }
 
+    // Set up web dashboard
+    setupDashboard(statusManager)
+    go func() {
+        log.Printf("Starting dashboard on http://localhost:8080/dashboard")
+        if err := http.ListenAndServe(":8080", nil); err != nil {
+            log.Fatalf("Error starting HTTP server: %v", err)
+        }
+    }()
+
     // Process status updates
     go func() {
         for status := range statusChan {
             statusManager.UpdateStatus(status)
+
+            // Send email notification if service is down
+            if !status.IsHealthy {
+                if err := sendEmailNotification(config.Email, status); err != nil {
+                    log.Printf("Error sending email notification: %v", err)
+                }
+            }
 
             // Log status
             if !status.IsHealthy {
