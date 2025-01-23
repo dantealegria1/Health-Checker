@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "name": "Portafolio",
+      "url": "https://dantealegria1.github.io/Portafolio/",
+      "interval": 30
+    },
+    {
+      "name": "Regex",
+      "url": "https://regex-playground.onrender.com/",
+      "interval": 60
+    },
+    {
+      "name": "Musica",
+      "url": "https://676cde2b0664912ebf849a4e--dancing-dodol-946cf1.netlify.app/",
+      "interval": 15
+    }
+  ]
+}
